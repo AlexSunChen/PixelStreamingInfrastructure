@@ -173,6 +173,50 @@ export class WebXRController {
                 mat[3], mat[7], mat[11], mat[15]
             ]);
 
+            // Retrieve the TransformMatrix and projectionMatrix for both eyes.
+            interface EyeData {
+                viewTransform: Float32Array;
+                projectionMatrix: Float32Array;
+            }
+            
+            const createEyeData = (): EyeData => ({
+                viewTransform: new Float32Array(16),
+                projectionMatrix: new Float32Array(16)
+            });
+            const leftEyeData = createEyeData();
+            const rightEyeData = createEyeData();   
+
+            const setMatrixData = (data: EyeData, transform: Float32Array, projection: Float32Array) => {
+                const transpose = (matrix: Float32Array) => {
+                    const transposed = new Float32Array(16);
+                    for (let i = 0; i < 4; i++) {
+                        for (let j = 0; j < 4; j++) {
+                            transposed[i * 4 + j] = matrix[j * 4 + i];
+                        }
+                    }
+                    return transposed;
+                };
+                data.viewTransform.set(transpose(transform));
+                data.projectionMatrix.set(transpose(projection));
+            };
+
+            for (const view of pose.views) {
+                const { eye, transform, projectionMatrix } = view;
+
+                if (eye === 'left') {
+                    setMatrixData(leftEyeData, transform.matrix, projectionMatrix);
+                } else if (eye === 'right') {
+                    setMatrixData(rightEyeData, transform.matrix, projectionMatrix);
+                }
+            }
+
+            this.webRtcController.streamMessageController.toStreamerHandlers.get('XREyeViews')([
+                ...leftEyeData.viewTransform,
+                ...leftEyeData.projectionMatrix,
+                ...rightEyeData.viewTransform,
+                ...rightEyeData.projectionMatrix
+            ]);
+
             const glLayer = this.xrSession.renderState.baseLayer;
             // If we do have a valid pose, bind the WebGL layer's framebuffer,
             // which is where any content to be displayed on the XRDevice must be
